@@ -172,7 +172,7 @@ class TransformerEncoderLayer(Layer):
 
     def call(self, src, training=True):
         if self.drop_path_rate > 0.0:
-            src = self.drop_path([src, self.self_attn(self.pre_norm(src))], trainig = training)
+            src = self.drop_path([src, self.self_attn(self.pre_norm(src))], training = training)
         else:
             src = src + self.self_attn(self.pre_norm(src))
 
