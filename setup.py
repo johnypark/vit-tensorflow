@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="vit-tensorflow", # Replace with your own username
-    version="na",
+    version="0.0.1",
     author="Kim",
     author_email="",
     description="",
