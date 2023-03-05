@@ -1,6 +1,7 @@
 #!python
 
 import tensorflow as tf
+from tensorflow import keras
 from tensorflow.keras import Model
 from tensorflow.keras.layers import Layer
 from tensorflow.keras import Sequential
