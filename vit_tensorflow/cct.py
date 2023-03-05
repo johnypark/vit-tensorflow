@@ -9,8 +9,6 @@ import tensorflow.keras.layers as nn
 
 from einops import rearrange
 
-tf.config.run_functions_eagerly(True)
-
 def pair(t):
     return t if isinstance(t, tuple) else (t, t)
 
