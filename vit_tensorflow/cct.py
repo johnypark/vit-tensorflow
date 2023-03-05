@@ -73,36 +73,46 @@ def GELU():
 
     return nn.Activation(gelu)
 
-def drop_path(x, drop_prob=0.0, training=False):
-    """
-    Obtained from: github.com:rwightman/pytorch-image-models
-    Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).
-    This is the same as the DropConnect impl I created for EfficientNet, etc networks, however,
-    the original name is misleading as 'Drop Connect' is a different form of dropout in a separate paper...
-    See discussion: https://github.com/tensorflow/tpu/issues/494#issuecomment-532968956 ... I've opted for
-    changing the layer and argument names to 'drop path' rather than mix DropConnect as a layer name and use
-    'survival rate' as the argument.
-    """
-    if drop_prob == 0.0 or not training:
-        return x
-    keep_prob = 1 - drop_prob
-    shape = [x.shape[0]] + [1] * (tf.rank(x).numpy() - 1)  # work with diff dim tensors, not just 2D ConvNets
-    random_tensor = keep_prob + tf.random.uniform(shape=shape, minval=0.0, maxval=1.0, dtype=x.dtype)
-    random_tensor = tf.floor(random_tensor) # binarize
-    x = tf.divide(x, keep_prob) * random_tensor
-    return x
 
-class DropPath(Layer):
-    """
-    Obtained from: github.com:rwightman/pytorch-image-models
-    Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
-    """
-    def __init__(self, drop_prob=None):
-        super(DropPath, self).__init__()
-        self.drop_prob = drop_prob
+# modified from tensorflow addons https://github.com/tensorflow/addons/blob/v0.17.0/tensorflow_addons/layers/stochastic_depth.py#L5-L90
+class StochasticDepth(tf.keras.layers.Layer):
 
-    def call(self, x, training=True):
-        return drop_path(x, self.drop_prob, training=training)
+    def __init__(self, survival_probability: float = 0.5, **kwargs):
+        super().__init__(**kwargs)
+
+        self.survival_probability = survival_probability
+
+    def call(self, x, training=None):
+        if not isinstance(x, list) or len(x) != 2:
+            raise ValueError("input must be a list of length 2.")
+
+        shortcut, residual = x
+
+        # Random bernoulli variable indicating whether the branch should be kept or not or not
+        b_out = keras.backend.random_bernoulli(
+            [], p=self.survival_probability
+        )
+
+        def _call_train():
+            return tf.keras.layers.Add()(shortcut, b_out * residual)
+
+        def _call_test():
+            return tf.keras.layers.Add()(shortcut, residual)
+
+        return tf.keras.backend.in_train_phase(
+            _call_train, _call_test, training=training
+        )
+
+    def compute_output_shape(self, input_shape):
+        return input_shape[0]
+
+    def get_config(self):
+        base_config = super().get_config()
+
+        config = {"survival_probability": self.survival_probability}
+
+        return {**base_config, **config}
+    
 
 class Attention(Layer):
     def __init__(self, dim, num_heads=8, attention_dropout=0.1, projection_dropout=0.1):
@@ -154,13 +164,13 @@ class TransformerEncoderLayer(Layer):
         self.drop_path_rate = drop_path_rate
 
         if drop_path_rate > 0:
-            self.drop_path = DropPath(drop_path_rate)
+            self.drop_path = StochasticDepth(drop_path_rate)
 
         self.activation = GELU()
 
     def call(self, src, training=True):
         if self.drop_path_rate > 0.0:
-            src = src + self.drop_path(self.self_attn(self.pre_norm(src)))
+            src = self.drop_path([src, self.self_attn(self.pre_norm(src))], trainig = training)
         else:
             src = src + self.self_attn(self.pre_norm(src))
 
@@ -169,7 +179,7 @@ class TransformerEncoderLayer(Layer):
         src2 = self.dropout2(src2, training=training)
 
         if self.drop_path_rate > 0.0:
-            src = src + self.drop_path(src2, training=training)
+            src = self.drop_path([src, src2], training = training)
         else:
             src = src + src2
 
@@ -258,13 +268,12 @@ class TransformerClassifier(Layer):
             self.positional_emb = None
 
         self.dropout = nn.Dropout(rate=dropout_rate)
-        dpr = [x.numpy() for x in tf.linspace(0.0, stochastic_depth_rate, num_layers)]
 
         self.blocks = Sequential()
         for i in range(num_layers):
             self.blocks.add(TransformerEncoderLayer(d_model=embedding_dim, nhead=num_heads,
                                                     dim_feedforward=dim_feedforward, dropout=dropout_rate,
-                                                    attention_dropout=attention_dropout, drop_path_rate=dpr[i]))
+                                                    attention_dropout=attention_dropout, drop_path_rate=stochastic_depth_rate))
         self.norm = nn.LayerNormalization()
         self.fc = nn.Dense(units=num_classes)
 
