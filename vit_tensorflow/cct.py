@@ -287,7 +287,7 @@ class TransformerClassifier(Layer):
                                                     dim_feedforward=dim_feedforward, dropout=dropout_rate,
                                                     attention_dropout=attention_dropout, drop_path_rate=stochastic_depth_rate))
         self.norm = nn.LayerNormalization()
-        self.fc = nn.Dense(units=num_classes)
+        self.fc = nn.Dense(units=num_classes, activation = 'softmax')
 
     def sinusoidal_embedding(self, n_channels, dim):
         pe = tf.cast(([[p / (10000 ** (2 * (i // 2) / dim)) for i in range(dim)] for p in range(n_channels)]), tf.float32)
