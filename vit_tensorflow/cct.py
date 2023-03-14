@@ -153,19 +153,30 @@ class TransformerEncoderLayer(Layer):
     def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
                  attention_dropout=0.1, drop_path_rate=0.1):
         super(TransformerEncoderLayer, self).__init__()
-
-        self.pre_norm = nn.LayerNormalization()
-        self.self_attn = Attention(dim=d_model, num_heads=nhead, attention_dropout=attention_dropout, projection_dropout=dropout)
-
-        self.linear1 = nn.Dense(units=dim_feedforward)
-        self.dropout1 = nn.Dropout(rate=dropout)
-        self.norm1 = nn.LayerNormalization()
-        self.linear2 = nn.Dense(units=d_model)
-        self.dropout2 = nn.Dropout(rate=dropout)
+        self.nhead = nhead
+        self.d_model = d_model
+        self.dim_feedforward = dim_feedforward
+        self.dropout = dropout
+        self.attention_dropout = attention_dropout
         self.drop_path_rate = drop_path_rate
 
-        if drop_path_rate > 0:
-            self.drop_path = StochasticDepth(drop_path_rate)
+
+    def build(self, input_shape):
+        self.pre_norm = nn.LayerNormalization()
+        self.self_attn = Attention(dim = self.d_model, 
+                                   num_heads = self.nhead, 
+                                   attention_dropout = self.attention_dropout, 
+                                   projection_dropout = self.dropout)
+
+        self.linear1 = nn.Dense(units= self.dim_feedforward)
+        self.dropout1 = nn.Dropout(rate= self.dropout)
+        self.norm1 = nn.LayerNormalization()
+        self.linear2 = nn.Dense(units= self.d_model)
+        self.dropout2 = nn.Dropout(rate= self.dropout)
+        self.drop_path_rate = self.drop_path_rate
+
+        if self.drop_path_rate > 0:
+            self.drop_path = StochasticDepth(self.drop_path_rate)
 
         self.activation = GELU()
 
